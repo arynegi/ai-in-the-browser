@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Vision API Object Detection</title>
+    <style>
+        #results {
+            position: fixed;
+            top: 50px;
+            left: 10px;
+            color: white;
+        }
+
+        #results span {
+            margin: 5px 5px;
+        }
+        
+        video {
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        h1 {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+        }
+
+        button {
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+    </style>
+</head>
+<body>
+    <video autoplay="true" id="videoElement"></video>
+    <button id="vision_button">Analyze</button>
+    <div id="results"></div>
+    
+    <script>
+        // Access camera
+        const video = document.querySelector("#videoElement");
+        
+        if (navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({video: true})
+                .then(stream => {
+                    video.srcObject = stream;
+                })
+                .catch(err => {
+                    console.log("Something went wrong!");
+                });
+        }
+
+        // Event listener for vision button
+        document.querySelector("#vision_button").addEventListener('click', async () => {
+            const scale = 0.25;
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth * scale;
+            canvas.height = video.videoHeight * scale;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Get base64 image data
+            const dataUrl = canvas.toDataURL();
+            const imageContent = dataUrl.split('base64,')[1];
+
+            // Make request to Google Vision API
+            try {
+                const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=AIzaSyAA_ry3buzTAlr8R7CQJKSemIW5oKva1es`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        requests: [
+                            {
+                                features: [{ type: 'OBJECT_LOCALIZATION' }],
+                                image: { content: imageContent }
+                            }
+                        ]
+                    })
+                });
+
+                const json = await response.json();
+                displayResults(json);
+            } catch (error) {
+                console.error("Error:", error);
+            }
+        });
+
+        // Function to display results from Object Detection
+        function displayResults(json) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            const objects = json.responses[0]?.localizedObjectAnnotations || [];
+
+            objects.forEach(object => {
+                const description = document.createElement('span');
+                const score = document.createElement('span');
+                const div = document.createElement('div');
+
+                description.innerText = object.name;
+                score.innerText = ` - Confidence: ${(object.score * 100).toFixed(2)}%`;
+
+                div.append(description, score);
+                resultsDiv.append(div);
+            });
+        }
+    </script>
+</body>
+</html>
